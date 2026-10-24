@@ -630,6 +630,7 @@ function MR:BuildUI()
             build = function(tooltip)
                 tooltip:SetText(L["AltBoard_OpenTooltip"] or "Open Alt Weekly Board", 1, 1, 1)
                 tooltip:AddLine(L["AltBoard_OpenTooltipSub"] or "Browse every tracked alt and see exactly what is done, in progress, or untouched this week.", 0.6, 0.85, 0.85, true)
+                tooltip:AddLine(L["WhatsLeft_OpenHint"] or "Right-click: What's Left This Week", 0.45, 0.85, 1)
             end,
         })
     end)
@@ -640,7 +641,12 @@ function MR:BuildUI()
         warbandText:SetTextColor(r, g, b)
         ns.HideOwnedTooltip(selfBtn)
     end)
-    warbandBtn:SetScript("OnClick", function()
+    warbandBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    warbandBtn:SetScript("OnClick", function(_, button)
+        if button == "RightButton" and MR.ToggleWhatsLeft then
+            MR:ToggleWhatsLeft()
+            return
+        end
         MR:ToggleWarbandBoard()
     end)
     self.warbandBtn = warbandBtn

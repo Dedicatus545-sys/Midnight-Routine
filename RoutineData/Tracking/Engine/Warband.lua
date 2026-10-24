@@ -101,4 +101,70 @@ tracking.installers["Warband"] = function(owner, context)
         return changed
     end
 
+    local function CompareWhatsLeft(a, b)
+        if a.remaining ~= b.remaining then
+            return a.remaining > b.remaining
+        end
+        if a.isCurrent ~= b.isCurrent then
+            return a.isCurrent
+        end
+        if (a.name or "") ~= (b.name or "") then
+            return (a.name or "") < (b.name or "")
+        end
+        return (a.realm or "") < (b.realm or "")
+    end
+
+    function MR:GetWarbandWhatsLeft()
+        if not self.GetWarbandWeeklyData then
+            return {}
+        end
+        local results = {}
+        for _, snapshot in ipairs(self:GetWarbandWeeklyData() or {}) do
+            local entry = {
+                key = snapshot.key,
+                name = snapshot.name,
+                realm = snapshot.realm,
+                classFile = snapshot.classFile,
+                isCurrent = snapshot.isCurrent and true or false,
+                stale = snapshot.stale and true or false,
+                remaining = 0,
+                done = 0,
+                total = 0,
+                groups = {},
+            }
+            for _, moduleEntry in ipairs(snapshot.modules or {}) do
+                local group
+                for _, row in ipairs(moduleEntry.rows or {}) do
+                    if not row.currencyBrowserButton and not row.noMax and (tonumber(row.max) or 0) > 0 then
+                        entry.total = entry.total + 1
+                        if row.complete then
+                            entry.done = entry.done + 1
+                        else
+                            if not group then
+                                group = {
+                                    key = moduleEntry.key,
+                                    label = moduleEntry.label,
+                                    color = moduleEntry.color,
+                                    rows = {},
+                                }
+                                entry.groups[#entry.groups + 1] = group
+                            end
+                            group.rows[#group.rows + 1] = {
+                                key = row.key,
+                                label = row.label,
+                                value = tonumber(row.value) or 0,
+                                max = tonumber(row.max) or 0,
+                                displayValue = row.displayValue,
+                            }
+                            entry.remaining = entry.remaining + 1
+                        end
+                    end
+                end
+            end
+            results[#results + 1] = entry
+        end
+        table.sort(results, CompareWhatsLeft)
+        return results
+    end
+
 end

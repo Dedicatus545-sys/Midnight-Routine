@@ -579,6 +579,7 @@ SlashCmdList["MIDROUTE"] = function(msg)
     elseif msg == "welcome" then MR:ShowWelcomeScreen()
     elseif msg == "renown" then MR:ToggleRenown()
     elseif msg == "renown config" then MR:ToggleRenownConfig()
+    elseif msg == "left" or msg == "whatsleft" then if MR.ToggleWhatsLeft then MR:ToggleWhatsLeft() end
     elseif msg == "rares" then if MR.ToggleRares then MR:ToggleRares() end
     elseif msg == "rares config" then if MR.ToggleRaresConfig then MR:ToggleRaresConfig() end
     elseif msg == "gathering" then if MR.ToggleGatheringLocations then MR:ToggleGatheringLocations() end

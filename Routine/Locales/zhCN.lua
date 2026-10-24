@@ -1118,3 +1118,11 @@ L["Venomstone_Research_Note"] = "在银月城化生台旁的奥林·迷光处接
 
 L["Config_TooltipCharacterLimit"] = "鼠标提示内显示的角色数量"
 L["Config_TooltipAllCharacters"] = "全部"
+L["WhatsLeft_Title"] = "What's Left This Week"
+L["WhatsLeft_Summary"] = "%d left across %d characters"
+L["WhatsLeft_Count"] = "%d left"
+L["WhatsLeft_AllDone"] = "All done"
+L["WhatsLeft_Stale"] = "not logged in this week"
+L["WhatsLeft_Empty"] = "No tracked characters yet. Log in on your alts to add them."
+L["WhatsLeft_OpenHint"] = "Right-click: What's Left This Week"
+L["WhatsLeft_NeedsData"] = "Update RoutineData to use this window."
