@@ -580,24 +580,93 @@ tracking.installers["WeeklyTasks"] = function(owner, context)
     local KITHIX_ENCOUNTER_ID = 3513
     local KITHIX_DIFFICULTIES = { 14, 15, 16, 17 }
     local raidInfoState
+    local pendingLockoutEvents = {}
+    local kithixRaidFinder
+    local kithixRaidFinderResolvedAt = 0
     local raidInfoFrame = CreateFrame("Frame")
-    raidInfoFrame:SetScript("OnEvent", function(self)
-        self:UnregisterEvent("UPDATE_INSTANCE_INFO")
-        raidInfoState = "ready"
+    raidInfoFrame:SetScript("OnEvent", function(self, event)
+        self:UnregisterEvent(event)
+        pendingLockoutEvents[event] = nil
+        if event == "LFG_LOCK_INFO_RECEIVED" and not kithixRaidFinder then
+            kithixRaidFinder = nil
+        end
+        if raidInfoState == "pending" and next(pendingLockoutEvents) == nil then
+            raidInfoState = "ready"
+        end
         if MR.RequestScan then MR:RequestScan(0.5) end
     end)
 
     local function RequestKithixLockouts()
         if raidInfoState or type(RequestRaidInfo) ~= "function" then return end
         raidInfoState = "pending"
+        pendingLockoutEvents.UPDATE_INSTANCE_INFO = true
         raidInfoFrame:RegisterEvent("UPDATE_INSTANCE_INFO")
+        if type(RequestLFDPlayerLockInfo) == "function" then
+            pendingLockoutEvents.LFG_LOCK_INFO_RECEIVED = true
+            raidInfoFrame:RegisterEvent("LFG_LOCK_INFO_RECEIVED")
+            RequestLFDPlayerLockInfo()
+        end
         RequestRaidInfo()
         C_Timer.After(15, function()
             if raidInfoState ~= "pending" then return end
-            raidInfoFrame:UnregisterEvent("UPDATE_INSTANCE_INFO")
+            for event in pairs(pendingLockoutEvents) do
+                raidInfoFrame:UnregisterEvent(event)
+            end
+            wipe(pendingLockoutEvents)
             raidInfoState = "ready"
             if MR.RequestScan then MR:RequestScan(0.5) end
         end)
+    end
+
+    local function NormalizeEncounterName(text)
+        if type(text) ~= "string" then return "" end
+        return (string.lower(text):gsub("[^%w]", ""))
+    end
+
+    local KITHIX_RAID_KEY = NormalizeEncounterName(L["Weekly_Kithix_Title"])
+
+    local function ResolveKithixRaidFinder()
+        if kithixRaidFinder then return kithixRaidFinder end
+        local now = GetTime()
+        if kithixRaidFinder == false and now - kithixRaidFinderResolvedAt < 60 then return false end
+        kithixRaidFinder = false
+        kithixRaidFinderResolvedAt = now
+        if type(GetNumRFDungeons) ~= "function" or type(GetRFDungeonInfo) ~= "function"
+            or type(GetLFGDungeonInfo) ~= "function" or type(GetLFGDungeonNumEncounters) ~= "function"
+            or type(GetLFGDungeonEncounterInfo) ~= "function" then
+            return false
+        end
+        local known = MR.db and MR.db.global and MR.db.global.encounterInstanceMaps
+        local knownMap = known and tonumber(known[KITHIX_ENCOUNTER_ID])
+        for index = 1, GetNumRFDungeons() or 0 do
+            local dungeonId = GetRFDungeonInfo(index)
+            if dungeonId then
+                local raidName = GetLFGDungeonInfo(dungeonId)
+                local lfgMapId = select(22, GetLFGDungeonInfo(dungeonId))
+                local raidMatch = (knownMap ~= nil and lfgMapId == knownMap)
+                    or (KITHIX_RAID_KEY ~= "" and NormalizeEncounterName(raidName) == KITHIX_RAID_KEY)
+                local numEncounters = GetLFGDungeonNumEncounters(dungeonId) or 0
+                for encounterIndex = 1, numEncounters do
+                    local bossName = GetLFGDungeonEncounterInfo(dungeonId, encounterIndex)
+                    if NormalizeEncounterName(bossName):find("kithix", 1, true) or (raidMatch and numEncounters == 1) then
+                        kithixRaidFinder = { dungeonId = dungeonId, encounterIndex = encounterIndex }
+                        if not knownMap and lfgMapId and lfgMapId > 0 and MR.db and MR.db.global then
+                            MR.db.global.encounterInstanceMaps = MR.db.global.encounterInstanceMaps or {}
+                            MR.db.global.encounterInstanceMaps[KITHIX_ENCOUNTER_ID] = lfgMapId
+                        end
+                        return kithixRaidFinder
+                    end
+                end
+            end
+        end
+        return false
+    end
+
+    local function IsKithixRaidFinderComplete()
+        local entry = ResolveKithixRaidFinder()
+        if not entry then return false end
+        local _, _, isKilled = GetLFGDungeonEncounterInfo(entry.dungeonId, entry.encounterIndex)
+        return isKilled == true
     end
 
     local function IsKithixLockoutComplete()
@@ -627,7 +696,7 @@ tracking.installers["WeeklyTasks"] = function(owner, context)
         RequestKithixLockouts()
         local killed = MR.WasEncounterKilledThisWeek and MR:WasEncounterKilledThisWeek(KITHIX_ENCOUNTER_ID)
         if not killed and raidInfoState == "ready" then
-            killed = IsKithixLockoutComplete()
+            killed = IsKithixLockoutComplete() or IsKithixRaidFinderComplete()
         end
         if killed then
             return MR:WriteScanProgress("s1_weekly", "kithix_kill", 1)
@@ -675,7 +744,7 @@ tracking.installers["WeeklyTasks"] = function(owner, context)
                     end
                 end
             end
-            local fragments = C_Item.GetItemCount(285065, false, false, true) or 0
+            local fragments = C_Item.GetItemCount(285065, true, false, true, true) or 0
             migrated = MR:WriteScanProgress("labyrinth", "mythical_soul_fragments", math.min(fragments, 3)) or migrated
             migrated = SyncKithixProgress() or migrated
             migrated = MoveKithixProgress(MR.db.char, not resetAt or resetAt <= (tonumber(MR.db.char.lastResetAt) or 0) + 300) or migrated
