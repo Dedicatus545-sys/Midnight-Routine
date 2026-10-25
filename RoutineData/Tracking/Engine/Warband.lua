@@ -115,6 +115,9 @@ tracking.installers["Warband"] = function(owner, context)
     end
 
     function MR:GetWarbandWhatsLeft()
+        if self.GetWarbandMainOverview then
+            return self:GetWarbandMainOverview()
+        end
         if not self.GetWarbandWeeklyData then
             return {}
         end

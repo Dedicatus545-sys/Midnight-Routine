@@ -16,7 +16,7 @@ local PAD = 8
 
 local frame
 local lines = {}
-local collapsed = {}
+local expanded = {}
 local refreshQueued = false
 
 local function Label(key, fallback)
@@ -63,7 +63,7 @@ local function AcquireLine(index)
     line._left:SetPoint("RIGHT", line._right, "LEFT", -6, 0)
     line:SetScript("OnClick", function(self)
         if self._charKey then
-            collapsed[self._charKey] = not collapsed[self._charKey]
+            expanded[self._charKey] = not expanded[self._charKey]
             MR:RefreshWhatsLeft()
         end
     end)
@@ -96,8 +96,14 @@ end
 
 local function Render()
     if not (frame and frame:IsShown()) then return end
-    local hasData = MR.GetWarbandWhatsLeft ~= nil
-    local data = hasData and MR:GetWarbandWhatsLeft() or {}
+    local hasData = MR.GetWarbandMainOverview ~= nil or MR.GetWarbandWhatsLeft ~= nil
+    local data
+    if MR.GetWarbandMainOverview then
+        data = MR:GetWarbandMainOverview()
+    elseif MR.GetWarbandWhatsLeft then
+        data = MR:GetWarbandWhatsLeft()
+    end
+    data = data or {}
     local baseSize = GetFontSize()
     local headerSize = math.max(9, baseSize)
     local groupSize = math.max(8, baseSize - 1)
@@ -130,7 +136,7 @@ local function Render()
             rightText = string.format(Label("WhatsLeft_Count", "%d left"), entry.remaining)
             rr, rg, rb = 1.00, 0.78, 0.30
         end
-        local isCollapsed = entry.remaining == 0 or collapsed[entry.key] == true
+        local isCollapsed = entry.remaining == 0 or expanded[entry.key] ~= true
         local arrow = entry.remaining == 0 and "  " or (isCollapsed and "|cff889095+|r " or "|cff889095-|r ")
         used = used + 1
         SetLine(used, y, 0, headerH, arrow .. nameText, cr, cg, cb, rightText, rr, rg, rb, headerSize, true, entry.remaining > 0 and entry.key or nil)
@@ -281,16 +287,54 @@ function MR:ToggleWhatsLeft()
     end
 end
 
+local combatPending = false
+local hookFrame = CreateFrame("Frame")
+
 local function QueueRefresh()
     if refreshQueued or not (frame and frame:IsShown()) then return end
     refreshQueued = true
-    C_Timer.After(1, function()
+    C_Timer.After(0.25, function()
         refreshQueued = false
+        if MR.ShouldDeferForCombat and MR:ShouldDeferForCombat("refreshUI") then
+            if not combatPending then
+                combatPending = true
+                hookFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            end
+            return
+        end
         Render()
     end)
 end
 
-if tracking and tracking.RegisterCallback then
-    tracking.RegisterCallback({}, "StatsInvalidated", QueueRefresh)
-    tracking.RegisterCallback({}, "DataRefreshRequested", QueueRefresh)
+function MR:RequestWhatsLeftRefresh()
+    QueueRefresh()
 end
+
+if tracking and tracking.RegisterCallback then
+    for _, event in ipairs({
+        "StatsInvalidated", "DataRefreshRequested", "UIRefreshRequested", "UIRefreshNeeded",
+        "DataChanged", "ResetApplied", "KnowledgeSurfacesChanged", "WarbandBoardRefreshRequested",
+        "WarbandCharacterSurfacesChanged", "WarbandDataSurfacesChanged",
+    }) do
+        tracking.RegisterCallback({}, event, QueueRefresh)
+    end
+end
+
+hookFrame:RegisterEvent("PLAYER_LOGIN")
+hookFrame:SetScript("OnEvent", function(self, event)
+    if event == "PLAYER_REGEN_ENABLED" then
+        self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        combatPending = false
+        QueueRefresh()
+        return
+    end
+    self:UnregisterEvent("PLAYER_LOGIN")
+    for _, method in ipairs({
+        "RefreshUI", "RequestUIRefresh", "RequestDataRefresh", "MarkBackgroundDataDirty",
+        "RequestWarbandBoardRefresh", "SetMainAltViewCharacter", "SetProgress", "SetManualOverride",
+    }) do
+        if type(MR[method]) == "function" then
+            hooksecurefunc(MR, method, QueueRefresh)
+        end
+    end
+end)

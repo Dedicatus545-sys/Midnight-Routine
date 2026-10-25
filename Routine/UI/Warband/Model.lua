@@ -1116,3 +1116,318 @@ function MR:SetAltBoardCharacterNote(charKey, note)
         self.db.profile.altBoardCharacterNotes[charKey] = note
     end
 end
+
+local CURRENCY_MODULES = { currencies = true, pvp_currencies = true }
+
+local function IsStoryModule(mod)
+    return mod.configGroup == "story" or (type(mod.key) == "string" and mod.key:match("^story_campaign_") ~= nil)
+end
+
+local function NormalizeOverviewResetType(resetType)
+    if resetType == "daily" or resetType == "none" then
+        return resetType
+    end
+    return "weekly"
+end
+
+local function TrimCategory(value)
+    if type(value) ~= "string" then return nil end
+    value = value:gsub("^%s+", ""):gsub("%s+$", "")
+    if value == "" then return nil end
+    return value:sub(1, 80)
+end
+
+local function CountsTowardOverview(self, mod, row)
+    if not row or row.control or row.noMax then
+        return false
+    end
+    if CURRENCY_MODULES[mod.key] and not self:IsModuleHideComplete(mod.key) then
+        return false
+    end
+    return (tonumber(row.max) or 0) > 0 or row.completeFunc ~= nil
+end
+
+local function GetCharacterRowSettings(self, charData, mod, row)
+    local settingKey = row.visibilityModuleKey or mod.key
+    local settingMod = (self.moduleByKey and self.moduleByKey[settingKey]) or mod
+    return GetCharacterModuleSettings(self, charData, settingMod)
+end
+
+local function IsAltRowEnabled(self, charData, mod, row)
+    if not self:IsPatchEnabled(self:GetRowPatchKey(mod, row), mod.key) then
+        return false
+    end
+    local settings = GetCharacterRowSettings(self, charData, mod, row)
+    return not (settings and settings.hiddenRows and settings.hiddenRows[row.key] == false)
+end
+
+local function IsAltModuleShown(self, charKey, charData, mod, isCurrent)
+    if self.isForever and not (mod.foreverAvailable or self:GetModuleExpansionKey(mod) == "forever") then
+        return false
+    end
+    if self.ShouldHideProfessionModuleInMain and self:ShouldHideProfessionModuleInMain(mod) then
+        return false
+    end
+    if isCurrent then
+        if not self:IsModuleEnabled(mod.key) then
+            return false
+        end
+        return not mod.isVisible or mod:isVisible()
+    end
+    local enabled = self:GetWarbandCharacterModuleState(charKey, mod)
+    if not enabled then
+        return false
+    end
+    return IsStoryModule(mod) or not mod.isVisible or mod:isVisible()
+end
+
+local function GetResetBoundary(self, resetType)
+    if resetType == "daily" then
+        return self.GetLastDailyTimestamp and self:GetLastDailyTimestamp() or 0
+    elseif resetType == "none" then
+        return 0
+    end
+    return self.GetLastResetTimestamp and self:GetLastResetTimestamp() or 0
+end
+
+local function BuildAltCustomTaskGroups(self, charData)
+    local globalData = self.db and self.db.global
+    local tasks = {}
+    for _, task in ipairs(type(charData.customTasks) == "table" and charData.customTasks or {}) do
+        if type(task) == "table" then tasks[#tasks + 1] = { task = task, scope = "character" } end
+    end
+    for _, task in ipairs(globalData and type(globalData.customTasks) == "table" and globalData.customTasks or {}) do
+        if type(task) == "table" then tasks[#tasks + 1] = { task = task, scope = "shared" } end
+    end
+    table.sort(tasks, function(a, b)
+        local aOrder = tonumber(a.task.order) or math.huge
+        local bOrder = tonumber(b.task.order) or math.huge
+        if aOrder ~= bOrder then return aOrder < bOrder end
+        if a.scope ~= b.scope then return a.scope < b.scope end
+        return (tonumber(a.task.id) or 0) < (tonumber(b.task.id) or 0)
+    end)
+
+    local groups, order = {}, {}
+    for _, entry in ipairs(tasks) do
+        local task = entry.task
+        local taskId = tonumber(task.id)
+        if taskId then
+            local resetType = NormalizeOverviewResetType(task.resetType)
+            local category = TrimCategory(task.category)
+            local moduleKey = "custom_tasks"
+            if category and self.GetCustomTaskCategoryModuleEntry then
+                local categoryEntry = self:GetCustomTaskCategoryModuleEntry(resetType, category, false)
+                if categoryEntry and categoryEntry.enabled == true and categoryEntry.id then
+                    moduleKey = "custom_task_category_module_" .. tostring(categoryEntry.id)
+                end
+            end
+            local maxValue = math.max(1, math.min(999, math.floor(tonumber(task.max) or 1)))
+            local difficultyCount = 0
+            if type(task.encounterDifficulties) == "table" then
+                for _, enabled in pairs(task.encounterDifficulties) do
+                    if enabled == true then difficultyCount = difficultyCount + 1 end
+                end
+            end
+            if difficultyCount >= 2 then maxValue = difficultyCount end
+            local group = groups[moduleKey]
+            if not group then
+                group = { moduleKey = moduleKey, category = moduleKey ~= "custom_tasks" and category or nil, rows = {} }
+                groups[moduleKey] = group
+                order[#order + 1] = moduleKey
+            end
+            group.rows[#group.rows + 1] = {
+                key = (entry.scope == "shared" and "shared_task_" or "task_") .. tostring(taskId),
+                label = tostring(task.label or ""),
+                max = maxValue,
+                accountWideComplete = task.accountWideComplete == true,
+                resetType = resetType,
+            }
+        end
+    end
+    return groups, order
+end
+
+local function AppendOverviewRow(group, row, value, maxValue)
+    group.rows[#group.rows + 1] = {
+        key = row.key,
+        label = CleanAccountLabel(row.label),
+        value = value,
+        max = maxValue,
+        displayValue = maxValue > 0 and string.format("%d / %d", math.min(value, maxValue), maxValue) or nil,
+    }
+end
+
+function MR:GetCharacterMainOverview(charKey)
+    local charData = self:GetCharacter(charKey)
+    if type(charData) ~= "table" then
+        return nil
+    end
+    local currentKey = self:GetCurrentCharacterKey()
+    local isCurrent = charKey == currentKey
+    local lastSyncAt = tonumber(charData.lastSyncAt) or 0
+    local weeklyReset = GetResetBoundary(self, "weekly")
+    local name, realm = ParseCharacterKey(charKey)
+    local overview = {
+        key = charKey,
+        name = name,
+        realm = realm,
+        classFile = charData.classFile,
+        isCurrent = isCurrent,
+        stale = (not isCurrent) and weeklyReset > 0 and lastSyncAt > 0 and lastSyncAt < weeklyReset,
+        remaining = 0,
+        done = 0,
+        total = 0,
+        groups = {},
+    }
+
+    local function IsStale(resetType)
+        if isCurrent or (resetType ~= "weekly" and resetType ~= "daily") then return false end
+        local boundary = GetResetBoundary(self, resetType)
+        return boundary > 0 and lastSyncAt > 0 and lastSyncAt < boundary
+    end
+
+    local function NewGroup(mod, label)
+        return {
+            key = mod and mod.key or "custom_tasks",
+            label = CleanAccountLabel(label or (mod and mod.label) or ""),
+            color = mod and ((self.GetHeaderColor and self:GetHeaderColor(mod.key)) or mod.labelColor) or "#b07cff",
+            rows = {},
+        }
+    end
+
+    local function Count(group, complete, row, value, maxValue)
+        overview.total = overview.total + 1
+        if complete then
+            overview.done = overview.done + 1
+        else
+            overview.remaining = overview.remaining + 1
+            AppendOverviewRow(group, row, value, maxValue)
+        end
+    end
+
+    local function Finish(group)
+        if #group.rows > 0 then
+            overview.groups[#overview.groups + 1] = group
+        end
+    end
+
+    local altCustomGroups, altCustomOrder
+    local altCustomUsed = {}
+
+    local function HandleAltCustomGroup(moduleKey, mod)
+        local source = altCustomGroups and altCustomGroups[moduleKey]
+        if not source then return end
+        altCustomUsed[moduleKey] = true
+        local label = moduleKey == "custom_tasks" and (charData.customTasksTitle or (mod and mod.label)) or source.category
+        local group = NewGroup(mod, label)
+        if not mod then group.key = moduleKey end
+        local accountProgress = self.db.global and self.db.global.customTaskProgress and self.db.global.customTaskProgress.custom_tasks
+        local charProgress = type(charData.progress) == "table" and charData.progress.custom_tasks or nil
+        for _, row in ipairs(source.rows) do
+            local value
+            if row.accountWideComplete then
+                value = tonumber(accountProgress and accountProgress[row.key]) or 0
+            elseif IsStale(row.resetType) then
+                value = 0
+            else
+                value = tonumber(charProgress and charProgress[row.key]) or 0
+            end
+            Count(group, value >= row.max, row, value, row.max)
+        end
+        Finish(group)
+    end
+
+    if not isCurrent then
+        altCustomGroups, altCustomOrder = BuildAltCustomTaskGroups(self, charData)
+    end
+
+    for _, mod in ipairs(self:GetOrderedMainModules()) do
+        local isCustom = mod.key == "custom_tasks" or mod.customTaskCategoryModule
+        if IsAltModuleShown(self, charKey, charData, mod, isCurrent) then
+            if isCustom and not isCurrent then
+                HandleAltCustomGroup(mod.key, mod)
+            else
+                local group = NewGroup(mod, mod.key == "custom_tasks" and charData.customTasksTitle or mod.label)
+                local rows = self.GetOrderedRows and self:GetOrderedRows(mod) or mod.rows
+                local moduleStale = IsStale(mod.resetType)
+                for _, row in ipairs(rows or {}) do
+                    if not row.hideInMain and CountsTowardOverview(self, mod, row) then
+                        local visible, enabled
+                        if isCurrent then
+                            visible = self:IsRowVisibleForCharacter(mod, row, self.db.char)
+                            enabled = visible and self:IsRowEnabled(mod.key, row.key)
+                        else
+                            visible = self:IsRowVisibleForCharacter(mod, row, charData)
+                            enabled = visible and IsAltRowEnabled(self, charData, mod, row)
+                        end
+                        if visible and enabled then
+                            local progressKey = row.progressModuleKey or mod.key
+                            local value = tonumber(self:GetProgress(progressKey, row.key, charKey)) or 0
+                            if moduleStale or (row.resetType and IsStale(row.resetType)) then
+                                value = 0
+                            end
+                            local maxValue = tonumber(row.max) or 0
+                            local complete
+                            if isCurrent then
+                                complete = self:IsRowComplete(mod, row, value) and true or false
+                            elseif row.completeFunc then
+                                complete = row.completeFunc(value, row, mod) == true
+                            else
+                                complete = maxValue > 0 and value >= maxValue
+                            end
+                            Count(group, complete, row, value, maxValue)
+                        end
+                    end
+                end
+                Finish(group)
+            end
+        end
+    end
+
+    if altCustomOrder then
+        local customMod = self.moduleByKey and self.moduleByKey.custom_tasks
+        for _, moduleKey in ipairs(altCustomOrder) do
+            if not altCustomUsed[moduleKey] then
+                local registered = self.moduleByKey and self.moduleByKey[moduleKey]
+                local parentShown = customMod and IsAltModuleShown(self, charKey, charData, customMod, false)
+                local shown = registered and IsAltModuleShown(self, charKey, charData, registered, false)
+                    or (not registered and parentShown)
+                if shown then
+                    HandleAltCustomGroup(moduleKey, registered or (moduleKey == "custom_tasks" and customMod) or nil)
+                end
+            end
+        end
+    end
+
+    return overview
+end
+
+function MR:GetWarbandMainOverview()
+    local characters = self:GetCharacters()
+    if type(characters) ~= "table" then
+        return {}
+    end
+    local profile = self.db and self.db.profile or {}
+    local hiddenChars = profile.altBoardHiddenCharacters or {}
+    local showHidden = profile.altBoardShowHidden == true
+    local currentKey = self:GetCurrentCharacterKey()
+    local results = {}
+    for charKey, charData in pairs(characters) do
+        if type(charData) == "table" and type(charData.progress) == "table" then
+            local hidden = hiddenChars[charKey] == true
+            if charKey == currentKey or (showHidden and hidden) or ((not showHidden) and (not hidden)) then
+                local overview = self:GetCharacterMainOverview(charKey)
+                if overview then
+                    results[#results + 1] = overview
+                end
+            end
+        end
+    end
+    table.sort(results, function(a, b)
+        if a.remaining ~= b.remaining then return a.remaining > b.remaining end
+        if a.isCurrent ~= b.isCurrent then return a.isCurrent end
+        if (a.name or "") ~= (b.name or "") then return (a.name or "") < (b.name or "") end
+        return (a.realm or "") < (b.realm or "")
+    end)
+    return results
+end
