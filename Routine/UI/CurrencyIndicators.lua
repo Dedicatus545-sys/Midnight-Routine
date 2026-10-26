@@ -37,7 +37,7 @@ function MR:AddCurrencyTransferTooltipLines(tooltip, currencyID)
         return false
     end
 
-    local percentage = tonumber(info and (info.transferPercentage or info.accountTransferPercentage or info.currencyTransferPercentage))
+    local percentage = tonumber(info and info.transferPercentage)
     tooltip:AddLine(" ")
     if percentage and percentage > 0 then
         tooltip:AddLine(string.format("Warband Transfer: %d%%", percentage), 0.45, 0.85, 1, true)

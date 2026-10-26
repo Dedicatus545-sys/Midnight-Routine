@@ -9,16 +9,8 @@ tracking.installers["ForeverReputations"] = function(owner, context)
     local F = ns.Forever
     function F.GetFactions()
         local factions = {}
-        local modern = C_Reputation and C_Reputation.GetNumFactions and C_Reputation.GetFactionDataByIndex
-        local count = modern and C_Reputation.GetNumFactions() or (GetNumFactions and GetNumFactions() or 0)
-        for index = 1, count do
-            local data
-            if modern then
-                data = C_Reputation.GetFactionDataByIndex(index)
-            elseif GetFactionInfo then
-                local name, _, reaction, low, high, standing, _, _, header, _, hasRep, _, id = GetFactionInfo(index)
-                data = { name = name, reaction = reaction, currentReactionThreshold = low, nextReactionThreshold = high, currentStanding = standing, isHeader = header, isHeaderWithRep = hasRep, factionID = id }
-            end
+        for index = 1, C_Reputation.GetNumFactions() do
+            local data = C_Reputation.GetFactionDataByIndex(index)
             if data and data.name and data.factionID and (not data.isHeader or data.isHeaderWithRep) then
                 factions[#factions + 1] = { key = "reputation_" .. data.factionID, label = data.name, factionId = data.factionID, maxRenown = 8, color = { 0.35, 0.79, 0.83 }, hex = "59c9d4", reputation = data }
             end

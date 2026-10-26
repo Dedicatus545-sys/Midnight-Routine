@@ -75,8 +75,7 @@ end
 local routineLoaded = false
 
 local function IsRoutineLoaded()
-    local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
-    return isLoaded and isLoaded("MidnightRoutine") and true or false
+    return C_AddOns.IsAddOnLoaded("MidnightRoutine") and true or false
 end
 
 function RoutineData:SetMinimapButtonShown(shown)

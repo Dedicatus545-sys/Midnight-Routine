@@ -124,7 +124,7 @@ local function BuildCurrencyEntries(searchText, warbandOnly)
             pendingHeader = info
             pendingHeaderKey = GetHeaderKey(info.name)
         else
-            local currencyID = info and tonumber(info.currencyID or info.currencyId)
+            local currencyID = info and tonumber(info.currencyID)
             if currencyID and not env.isCurrencyInCurrenciesModule(currencyID) then
                 local currencyInfo = C_CurrencyInfo.GetCurrencyInfo and C_CurrencyInfo.GetCurrencyInfo(currencyID) or nil
                 local candidate = {

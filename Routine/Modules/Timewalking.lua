@@ -497,13 +497,6 @@ tracking.installers["Timewalking"] = function(owner, context)
             return C_UnitAuras.GetPlayerAuraBySpellID(spellId) ~= nil
         end
 
-        if AuraUtil and AuraUtil.FindAuraByName and GetSpellInfo then
-            local spellName = GetSpellInfo(spellId)
-            if spellName and spellName ~= "" then
-                return AuraUtil.FindAuraByName(spellName, "player", "HELPFUL") ~= nil
-            end
-        end
-
         return false
     end
 

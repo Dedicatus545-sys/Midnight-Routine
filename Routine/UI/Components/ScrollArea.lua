@@ -64,7 +64,11 @@ function ns.AttachScrollList(scroll, content, track, opts)
             track:Hide()
             thumb:Hide()
             return
-        elseif maxScroll <= 0 or viewHeight <= 0 then
+        elseif viewHeight <= 0 then
+            thumb:Hide()
+            if opts.hideTrack then track:Hide() end
+            return
+        elseif maxScroll <= 0 then
             scroll:SetVerticalScroll(0)
             thumb:Hide()
             if opts.hideTrack then track:Hide() end

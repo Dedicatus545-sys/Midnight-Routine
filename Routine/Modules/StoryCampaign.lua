@@ -248,12 +248,9 @@ tracking.installers["StoryCampaign"] = function(owner, context)
                     or (C_CampaignInfo.GetCampaignChapterIDs and C_CampaignInfo.GetCampaignChapterIDs(campaignId))
                 if chapterIds and #chapterIds > 0 then
                     local name = (info and info.name and info.name ~= "") and info.name or (L["Story_CampaignPrefix"] .. campaignId)
-                    local mapId = info and info.uiMapID
-                    local mapInfo = mapId and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapId)
-                    local zoneName = mapInfo and mapInfo.name
-                    local expansionKey = ResolveStoryExpansionKey(name, zoneName)
+                    local expansionKey = ResolveStoryExpansionKey(name)
                     local storyCampaignsEnabled = AreStoryCampaignsEnabled(expansionKey)
-                    local label = zoneName and (L["Story_StoryPrefix"] .. zoneName .. " - " .. name) or (L["Story_StoryPrefix"] .. name)
+                    local label = L["Story_StoryPrefix"] .. name
                     local rows = {}
                     for _, chapterId in ipairs(chapterIds) do
                         local ch = C_CampaignInfo.GetCampaignChapterInfo and C_CampaignInfo.GetCampaignChapterInfo(chapterId)

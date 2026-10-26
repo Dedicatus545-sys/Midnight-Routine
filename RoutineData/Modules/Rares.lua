@@ -10,8 +10,7 @@ local SCAN_DEBOUNCE = 3
 local rareByNpcID
 
 local function IsRoutineLoaded()
-    local isLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or IsAddOnLoaded
-    return isLoaded and isLoaded("MidnightRoutine") and true or false
+    return C_AddOns.IsAddOnLoaded("MidnightRoutine") and true or false
 end
 
 local function BuildIndex()

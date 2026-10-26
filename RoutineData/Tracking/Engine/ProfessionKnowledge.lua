@@ -189,7 +189,7 @@ local function GetProfessionSkillSummary(skillLineID)
         return nil
     end
 
-    local bonus = info.bonusSkillLevel or info.bonusSkill or 0
+    local bonus = info.skillModifier or 0
     if bonus > 0 then
         return string.format("%d/%d +%d", skill, maxSkill, bonus)
     end

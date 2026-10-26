@@ -288,7 +288,6 @@ local function ApplyMainFrameLayout(frame, preserveScreenPosition)
 
     if scroll then
         scroll:ClearAllPoints()
-        scroll:SetShown(not minimized and not combatDisabled)
         if headerBottom then
             scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -4)
             scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -9, chromeHeight + 6)
@@ -296,6 +295,7 @@ local function ApplyMainFrameLayout(frame, preserveScreenPosition)
             scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -(chromeHeight + 6))
             scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -9, 4)
         end
+        scroll:SetShown(not minimized and not combatDisabled)
     end
 
     if track and scroll then

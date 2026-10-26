@@ -143,7 +143,7 @@ function tracking.API:CreateRareTracker(MR, zones, context)
         for _, rare in ipairs(zone.rares) do
             if not rare[2] and rare[3] and rare.resolveQuestID ~= false then unresolvedMaps[rare[3]] = true end
         end
-        if not next(unresolvedMaps) or not (C_TaskQuest and C_TaskQuest.GetQuestsForPlayerByMapID) then
+        if not next(unresolvedMaps) or not (C_TaskQuest and C_TaskQuest.GetQuestsOnMap) then
             return changed
         end
         local now = GetTime()
@@ -152,8 +152,8 @@ function tracking.API:CreateRareTracker(MR, zones, context)
         end
         RARE_QUEST_RESOLVE_AT[zone] = now
         for mapID in pairs(unresolvedMaps) do
-            for _, info in ipairs(C_TaskQuest.GetQuestsForPlayerByMapID(mapID) or {}) do
-                local questID = info.questId or info.questID
+            for _, info in ipairs(C_TaskQuest.GetQuestsOnMap(mapID) or {}) do
+                local questID = info.questID
                 local rare
                 if info.x and info.y then
                     local nearestDistance
