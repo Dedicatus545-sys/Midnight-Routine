@@ -4,6 +4,7 @@ if not RoutineData then return end
 
 local CAPTURE_DEBOUNCE = 0.5
 local GUILD_TAB_SLOTS = 98
+local MAIL_ATTACHMENTS = 16
 
 local function Now()
     return (GetServerTime and GetServerTime()) or time()
@@ -128,6 +129,34 @@ local function CollectWarbandBank()
     return #tabs > 0 and tabs or nil
 end
 
+local function CollectMail()
+    if not (GetInboxNumItems and GetInboxHeaderInfo and GetInboxItem) then return nil end
+    local tab = { name = INBOX or "Inbox", items = {} }
+    local slot = 0
+    for index = 1, GetInboxNumItems() or 0 do
+        local itemCount = select(8, GetInboxHeaderInfo(index))
+        if (tonumber(itemCount) or 0) > 0 then
+            for attachment = 1, ATTACHMENTS_MAX_RECEIVE or MAIL_ATTACHMENTS do
+                local name, itemID, texture, count, quality = GetInboxItem(index, attachment)
+                if itemID then
+                    local link = GetInboxItemLink and GetInboxItemLink(index, attachment)
+                    slot = slot + 1
+                    tab.items[slot] = {
+                        id = itemID,
+                        link = link,
+                        name = name or (link and link:match("%[(.-)%]")),
+                        icon = texture,
+                        count = tonumber(count) or 1,
+                        quality = quality,
+                    }
+                end
+            end
+        end
+    end
+    tab.slots = slot
+    return tab
+end
+
 local function CurrentGuildIdentity()
     if not GetGuildInfo then return nil end
     local guildName, _, _, guildRealm = GetGuildInfo("player")
@@ -176,6 +205,18 @@ function RoutineData:CaptureWarbandBank()
     self.db.warband = { tabs = counts, updatedAt = now }
     self.db.snapshots.warband = { tabs = tabs, updatedAt = now }
     self:Fire("ItemsUpdated", nil, "warband")
+end
+
+function RoutineData:CaptureMail()
+    local charKey = self:GetCurrentCharacterKey()
+    local tab = CollectMail()
+    if not charKey or not tab then return end
+    local now = Now()
+    local record = self:GetCharacterRecord(charKey, true)
+    record.mail = CountTab(tab)
+    record.updatedAt.mail = now
+    self.db.snapshots.mail[charKey] = { tabs = { tab }, updatedAt = now }
+    self:Fire("ItemsUpdated", charKey, "mail")
 end
 
 function RoutineData:RefreshCharacterGuild()
@@ -316,6 +357,15 @@ local handlers = {
     end,
     PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED = function()
         if state.bankOpen then Debounced("warband", function() RoutineData:CaptureWarbandBank() end) end
+    end,
+    MAIL_SHOW = function()
+        state.mailOpen = true
+    end,
+    MAIL_CLOSED = function()
+        state.mailOpen = nil
+    end,
+    MAIL_INBOX_UPDATE = function()
+        if state.mailOpen then Debounced("mail", function() RoutineData:CaptureMail() end) end
     end,
     GUILDBANKFRAME_OPENED = function()
         state.guildBankOpen = true

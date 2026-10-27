@@ -31,6 +31,7 @@ local DEFAULTS = {
         minimap = { hide = false },
         tooltipBags = true,
         tooltipBank = true,
+        tooltipMail = true,
         tooltipWarband = true,
         tooltipGuild = true,
     },
@@ -107,7 +108,7 @@ function RoutineData:MigrateLegacyCharacterKey(key)
     if not (db and legacy and legacy ~= key and db.characters[legacy] and not db.characters[key]) then return end
 
     db.characters[key], db.characters[legacy] = db.characters[legacy], nil
-    for _, store in ipairs({ db.characterGuilds, db.snapshots.characters, db.snapshots.bags, db.snapshots.guildBanks }) do
+    for _, store in ipairs({ db.characterGuilds, db.snapshots.characters, db.snapshots.bags, db.snapshots.mail, db.snapshots.guildBanks }) do
         if store[legacy] ~= nil and store[key] == nil then
             store[key], store[legacy] = store[legacy], nil
         end
@@ -131,7 +132,7 @@ function RoutineData:GetCharacterRecord(charKey, create)
     local characters = self.db.characters
     local record = characters[charKey]
     if not record and create then
-        record = { bags = {}, bank = {}, currencies = {}, updatedAt = {} }
+        record = { bags = {}, bank = {}, mail = {}, currencies = {}, updatedAt = {} }
         characters[charKey] = record
     end
     if record and not record.currencies then record.currencies = {} end
@@ -145,6 +146,7 @@ function RoutineData:ForgetCharacter(charKey)
     self.db.characterGuilds[charKey] = nil
     self.db.snapshots.characters[charKey] = nil
     self.db.snapshots.bags[charKey] = nil
+    self.db.snapshots.mail[charKey] = nil
     self.db.snapshots.guildBanks[charKey] = nil
     self:Fire("CharacterRemoved", charKey)
     return true
@@ -165,6 +167,7 @@ function RoutineData:GetBankSnapshotView()
     return {
         characters = db.snapshots.characters,
         bags = db.snapshots.bags,
+        mail = db.snapshots.mail,
         warband = db.snapshots.warband,
         characterGuilds = db.characterGuilds,
         characterGuildBanks = db.snapshots.guildBanks,
@@ -221,7 +224,7 @@ local function SumTabs(tabs, itemID)
     return total
 end
 
--- Returns { characters = { {key, classFile, bags, bank}, ... }, warband = n, guilds = { {key, name, realm, count}, ... } }
+-- Returns { characters = { {key, classFile, bags, bank, mail}, ... }, warband = n, guilds = { {key, name, realm, count}, ... } }
 -- Only characters/guilds that hold the item are listed.
 function API.GetItemCounts(itemID)
     local db = RoutineData.db
@@ -231,12 +234,14 @@ function API.GetItemCounts(itemID)
     for charKey, record in pairs(db.characters) do
         local bags = record.bags[itemID] or 0
         local bank = record.bank[itemID] or 0
-        if bags > 0 or bank > 0 then
+        local mail = record.mail and record.mail[itemID] or 0
+        if bags > 0 or bank > 0 or mail > 0 then
             result.characters[#result.characters + 1] = {
                 key = charKey,
                 classFile = record.classFile,
                 bags = bags,
                 bank = bank,
+                mail = mail,
             }
         end
     end
@@ -303,7 +308,7 @@ function API.GetTotalItemCount(itemID)
     local counts = API.GetItemCounts(itemID)
     local total = counts.warband
     for _, entry in ipairs(counts.characters) do
-        total = total + entry.bags + entry.bank
+        total = total + entry.bags + entry.bank + entry.mail
     end
     for _, entry in ipairs(counts.guilds) do
         total = total + entry.count
@@ -326,7 +331,7 @@ frame:SetScript("OnEvent", function(_, event, loadedName)
             if type(db[key]) ~= "table" then db[key] = {} end
         end
         if type(db.warband.tabs) ~= "table" then db.warband.tabs = {} end
-        for _, key in ipairs({ "characters", "bags", "guildBanks" }) do
+        for _, key in ipairs({ "characters", "bags", "mail", "guildBanks" }) do
             if type(db.snapshots[key]) ~= "table" then db.snapshots[key] = {} end
         end
         MergeMissing(db, DEFAULTS)

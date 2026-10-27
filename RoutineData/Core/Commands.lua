@@ -11,6 +11,7 @@ local TOGGLES = {
     rares = "tooltipRares",
     bags = "tooltipBags",
     bank = "tooltipBank",
+    mail = "tooltipMail",
     warband = "tooltipWarband",
     guild = "tooltipGuild",
 }
@@ -51,7 +52,7 @@ local function PrintItem(argument)
     local counts = API.GetItemCounts(itemID)
     RoutineData:Print(string.format(L["Cmd_ItemTotal"], itemID, API.GetTotalItemCount(itemID)))
     for _, entry in ipairs(counts.characters) do
-        print(string.format("  %s  %s: %d  %s: %d", entry.key, L["Tooltip_Bags"], entry.bags, L["Tooltip_Bank"], entry.bank))
+        print(string.format("  %s  %s: %d  %s: %d  %s: %d", entry.key, L["Tooltip_Bags"], entry.bags, L["Tooltip_Bank"], entry.bank, L["Tooltip_Mail"], entry.mail))
     end
     if counts.warband > 0 then print(string.format("  %s %d", L["Tooltip_WarbandBank"], counts.warband)) end
     for _, guild in ipairs(counts.guilds) do

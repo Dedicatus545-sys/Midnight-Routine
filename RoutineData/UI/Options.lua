@@ -50,6 +50,7 @@ RoutineData:OnLogin(function(self)
         L["Options_YieldDesc"], true)
     AddCheckbox(settings, "tooltipBags", L["Options_Bags"], L["Options_BagsDesc"], true)
     AddCheckbox(settings, "tooltipBank", L["Options_Bank"], L["Options_BankDesc"], true)
+    AddCheckbox(settings, "tooltipMail", L["Options_Mail"], L["Options_MailDesc"], true)
     if not self.isForever then
         AddCheckbox(settings, "tooltipWarband", L["Options_Warband"], L["Options_WarbandDesc"], true)
     end
