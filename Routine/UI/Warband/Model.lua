@@ -1254,6 +1254,7 @@ local function AppendOverviewRow(group, row, value, maxValue)
         value = value,
         max = maxValue,
         displayValue = maxValue > 0 and string.format("%d / %d", math.min(value, maxValue), maxValue) or nil,
+        resetType = row.resetType,
     }
 end
 
@@ -1291,6 +1292,7 @@ function MR:GetCharacterMainOverview(charKey)
             key = mod and mod.key or "custom_tasks",
             label = CleanAccountLabel(label or (mod and mod.label) or ""),
             color = mod and ((self.GetHeaderColor and self:GetHeaderColor(mod.key)) or mod.labelColor) or "#b07cff",
+            resetType = mod and mod.resetType,
             rows = {},
         }
     end

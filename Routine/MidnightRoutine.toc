@@ -60,6 +60,7 @@ UI/Warband/ConcentrationTracker.lua
 UI/Warband/Banks.lua
 UI/Warband/Board.lua
 UI/Warband/WhatsLeft.lua
+UI/Warband/ResetReminder.lua
 UI/CustomTaskDialogs.lua
 UI/EncounterJournalOverlay.lua
 UI/CurrencyIndicators.lua

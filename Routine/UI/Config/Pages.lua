@@ -469,6 +469,29 @@ function MR:PopulateConfigFrame(f)
             end)
 
         Gap(4); Divider()
+        SectionLabel(L["Config_SectionReminders"])
+        Checkbox(L["Config_ResetReminder"],
+            function() return MR.db.profile.resetReminder == true end,
+            function(v)
+                MR.db.profile.resetReminder = v and true or false
+                if MR.RefreshResetReminder then MR:RefreshResetReminder() end
+                MR:PopulateConfigFrame(f)
+            end)
+        if MR.db.profile.resetReminder == true then
+            local reminderChoices = {}
+            for _, hours in ipairs({ 6, 12, 24, 48 }) do
+                reminderChoices[#reminderChoices + 1] = { label = string.format(L["Config_ResetReminderHours"], hours), value = hours }
+            end
+            ChoiceDropdown(L["Config_ResetReminderWindow"], reminderChoices,
+                function() return tonumber(MR.db.profile.resetReminderHours) or 24 end,
+                function(value)
+                    MR.db.profile.resetReminderHours = value
+                    if MR.RefreshResetReminder then MR:RefreshResetReminder() end
+                end,
+                function() return 24 end)
+        end
+
+        Gap(4); Divider()
         SectionLabel(L["Config_SectionMinimap"] or "MINIMAP")
         Checkbox(L["Config_HideMinimap"],
             function() return MR.db.profile.minimap and MR.db.profile.minimap.hide or false end,

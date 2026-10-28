@@ -1327,6 +1327,7 @@ local Warband = {
     WBApplySurface = WBApplySurface,
     WBStylePillButton = WBStylePillButton,
     WBFormatTimestamp = WBFormatTimestamp,
+    WBFormatDurationShort = WBFormatDurationShort,
     WBStatusText = WBStatusText,
     WBStatusColor = WBStatusColor,
     WBCharacterMatchesSearch = WBCharacterMatchesSearch,

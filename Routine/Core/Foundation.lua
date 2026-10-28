@@ -84,6 +84,8 @@ local DEFAULTS = {
         backgroundMedia = nil,
         minimap         = { hide = false, showInCompartment = true },
         minimapShowGold = true,
+        resetReminder   = false,
+        resetReminderHours = 24,
         managedWindowRestoreState = nil,
         firstSeen       = false,
         welcomeSuppressed = false,
