@@ -707,6 +707,37 @@ tracking.installers["WeeklyTasks"] = function(owner, context)
         return MR:WriteScanProgress("s1_weekly", "kithix_kill", 0)
     end
 
+    local function SyncWahduProgress()
+        if not (MR.db and MR.db.char and MR.db.char.progress) then return false end
+        local progress = MR.db.char.progress
+        progress.s1_weekly = progress.s1_weekly or {}
+        local store = progress.s1_weekly
+        local changed = false
+        local seenDone = false
+        for _, questId in ipairs(LABYRINTH_QUEST_IDS) do
+            local seenKey = "wahdu_seen_" .. questId
+            if IsQuestCurrentlyActive(questId) and not store[seenKey] then
+                store[seenKey] = true
+                changed = true
+            end
+            if store[seenKey] and C_QuestLog.IsQuestFlaggedCompleted(questId) then
+                seenDone = true
+            end
+        end
+        local done = (tonumber(store.wahdu_weekly) or 0) > 0
+        if seenDone and not done then
+            return MR:WriteScanProgress("s1_weekly", "wahdu_weekly", 1) or changed
+        end
+        if not store.wahdu_verified then
+            store.wahdu_verified = true
+            changed = true
+            if done and not seenDone then
+                return MR:WriteScanProgress("s1_weekly", "wahdu_weekly", 0) or changed
+            end
+        end
+        return changed
+    end
+
     tracking.RegisterCallback({}, "CustomTasksResetDue", function(_, resetType, _, characters)
         if resetType ~= "weekly" then return end
         for _, character in ipairs(type(characters) == "table" and characters or {}) do
@@ -747,6 +778,7 @@ tracking.installers["WeeklyTasks"] = function(owner, context)
             local fragments = C_Item.GetItemCount(285065, true, false, true, true) or 0
             migrated = MR:WriteScanProgress("labyrinth", "mythical_soul_fragments", math.min(fragments, 3)) or migrated
             migrated = SyncKithixProgress() or migrated
+            migrated = SyncWahduProgress() or migrated
             migrated = MoveKithixProgress(MR.db.char, not resetAt or resetAt <= (tonumber(MR.db.char.lastResetAt) or 0) + 300) or migrated
             local db = MR.db.char.progress
             if not db[mod.key] then db[mod.key] = {} end
@@ -1281,7 +1313,6 @@ tracking.installers["WeeklyTasks"] = function(owner, context)
                 max = 1,
                 questIds = LABYRINTH_QUEST_IDS,
                 turnInTracked = true,
-                allowQuestFlagBackfill = true,
                 allowManualOverride = true,
                 tooltipFunc = function(tip)
                     for _, questId in ipairs(LABYRINTH_QUEST_IDS) do
